@@ -96,3 +96,95 @@ python example.py
 The script should connect to `movies`, create a `Person` collection, insert and print three documents, and then drop the collection.
 
 ---
+
+## Daily use
+
+Do these steps every time you work on the project.
+
+### 1. Start the database
+
+Open Docker Desktop, then start the container if it is not already running:
+
+```
+docker start tdt4225-mongo
+```
+
+Check with `docker ps` that `tdt4225-mongo` has status `Up`.
+
+### 2. Activate the Python environment
+
+```
+conda activate tdt4225
+```
+
+The start of the terminal line should change from `(base)` to `(tdt4225)`.
+
+### 3. Get the latest changes from the group
+
+```
+git pull
+```
+
+### 4. Update your database
+
+If someone has changed the code for cleaning or inserting data, run the insertion script again so your database matches everyone else's:
+
+```
+python insert_data.py
+```
+
+### 5. Look at the data (optional)
+
+To check collections or test simple queries without Python, open the Mongo shell:
+
+```
+docker exec -it tdt4225-mongo mongosh -u oscar -p oscar123 --authenticationDatabase movies movies
+```
+
+Useful commands in the shell:
+
+```
+show collections
+db.<collection>.countDocuments()
+db.<collection>.findOne()
+```
+
+Type `exit` to leave the shell.
+
+### 6. Share your changes
+
+Pull before you push, to avoid conflicts with your teammates' changes:
+
+```
+git pull
+git add <files>
+git commit -m "Describe what you changed"
+git push
+```
+
+Use `git status` to check what will be committed. The `dataset/` folder should never appear there.
+
+### 7. Stop the database when you are done
+
+```
+docker stop tdt4225-mongo
+```
+
+The data is kept and will be there the next time you start the container.
+
+---
+
+## Troubleshooting
+
+| Error                                                 | Solution                                                                                |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `ModuleNotFoundError: No module named 'pymongo'`      | Run `conda activate tdt4225`, then `python -m pip install -r requirements.txt`.         |
+| `Authentication failed`                               | Check that the values in `DbConnector.py` match the table under "Database settings".    |
+| `ServerSelectionTimeoutError` or `Connection refused` | The container is not running. Open Docker Desktop and run `docker start tdt4225-mongo`. |
+| `collection Person already exists`                    | An earlier run of `example.py` crashed before cleaning up. Run the command below.       |
+
+Delete a leftover Person collection:
+
+```
+docker exec -it tdt4225-mongo mongosh -u oscar -p oscar123 --authenticationDatabase movies movies --eval "db.Person.drop()"
+```
