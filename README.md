@@ -206,8 +206,6 @@ The data is kept and will be there the next time you start the container.
 
 ---
 
-                             |
-
 ## Troubleshooting
 
 | Error                                                  | Solution                                                                                            |
