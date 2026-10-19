@@ -5,7 +5,7 @@ For each CSV file in dataset/ this script prints:
   - number of rows and columns
   - column names and data types
   - number and percentage of missing values per column
-It also lists which columns contain nested JSON-like strings (not parsed here).
+  - whether each column contains nested JSON-like strings (not parsed here)
 
 Run from anywhere:  python Part1/eda_overview.py
 """
@@ -96,31 +96,24 @@ def print_shape(df):
     print(f"Number of columns: {cols}")
 
 
-def print_columns_and_missing(df):
-    """Print one table with each column's data type and missing values."""
+def print_columns_and_missing(filename, df):
+    """
+    Print one table with each column's data type, whether it holds nested
+    JSON-like strings (listed in NESTED_COLUMNS), and its missing values.
+    """
     missing_count = df.isna().sum()
     missing_percent = (missing_count / len(df) * 100).round(2)
+    nested = NESTED_COLUMNS.get(filename, [])
 
     table = [
-        [col, str(df[col].dtype), missing_count[col], f"{missing_percent[col]:.2f} %"]
+        [col, str(df[col].dtype), "yes" if col in nested else "no",
+         missing_count[col], f"{missing_percent[col]:.2f} %"]
         for col in df.columns
     ]
     print_section("Columns and missing values")
-    print(tabulate(table, headers=["Column", "Data type", "Missing", "Missing (%)"],
+    print(tabulate(table,
+                   headers=["Column", "Data type", "Nested", "Missing", "Missing (%)"],
                    tablefmt="pretty"))
-
-
-def print_nested_columns(filename, df):
-    """Print which columns in this file contain nested JSON-like strings."""
-    nested = NESTED_COLUMNS.get(filename, [])
-    print_section("Nested JSON-like columns (not parsed yet)")
-    if not nested:
-        print("None")
-        return
-
-    # Show the start of one non-empty value per column as an example.
-    table = [[col, str(df[col].dropna().iloc[0])[:60] + "..."] for col in nested]
-    print(tabulate(table, headers=["Column", "Example value"], tablefmt="pretty"))
 
 
 def overview_file(filename):
@@ -131,8 +124,7 @@ def overview_file(filename):
 
     df = load_csv(filename)
     print_shape(df)
-    print_columns_and_missing(df)
-    print_nested_columns(filename, df)
+    print_columns_and_missing(filename, df)
     print()
 
 
