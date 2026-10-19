@@ -125,13 +125,16 @@ The start of the terminal line should change from `(base)` to `(tdt4225)`.
 git pull
 ```
 
-### 4. Update your database
+### 4. Update the database
 
-If someone has changed the code for cleaning or inserting data, run the insertion script again so your database matches everyone else's:
+If someone has changed `clean_data.py` or `insert_data.py`, rebuild your database so it matches everyone else's:
 
 ```
+python clean_data.py
 python insert_data.py
 ```
+
+If only `insert_data.py` has changed, you can skip `clean_data.py` and run `insert_data.py` alone.
 
 ### 5. Look at the data (optional)
 
@@ -162,7 +165,7 @@ git commit -m "Describe what you changed"
 git push
 ```
 
-Use `git status` to check what will be committed. The `dataset/` folder should never appear there.
+Use `git status` to check what will be committed. The `dataset/` and `cleaned/` folders should never appear there.
 
 ### 7. Stop the database when you are done
 
@@ -174,14 +177,45 @@ The data is kept and will be there the next time you start the container.
 
 ---
 
+### 8. Build the database
+
+The database is built in two steps: first the data is cleaned and saved to files, then the cleaned files are inserted into MongoDB.
+
+```
+python clean_data.py
+python insert_data.py
+```
+
+- `clean_data.py` reads the CSV files in `dataset/`, cleans them and saves the result as `cleaned/movies.pkl` and `cleaned/ratings.pkl`. It prints the number of rows before and after each cleaning step.
+- `insert_data.py` drops any existing `movies` and `ratings` collections, inserts the cleaned data, creates the indexes and prints the number of documents in each collection.
+
+The `cleaned/` folder is listed in `.gitignore` and must not be pushed, since the cleaned ratings are several hundred MB. Each group member creates their own copy by running `clean_data.py`.
+
+Inserting all 26 million ratings can take a while. Keep the computer plugged in and make sure Docker Desktop has enough memory and disk space (Settings → Resources). To test the scripts quickly first, set the test flag at the top of `clean_data.py` to use `ratings_small.csv` and `links_small.csv`, then run both scripts.
+
+Check that the database was built correctly:
+
+```
+docker exec -it tdt4225-mongo mongosh -u oscar -p oscar123 --authenticationDatabase movies movies --eval "db.movies.countDocuments(); db.ratings.countDocuments()"
+```
+
+The database contains two collections:
+
+| Collection | Content                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| `movies`   | One document per movie, with `_id` = TMDB id, and genres, collection, cast, crew and keywords embedded |
+| `ratings`  | One document per rating, with `userId`, `tmdbId`, `rating` and `timestamp`                             |
+
 ## Troubleshooting
 
-| Error                                                 | Solution                                                                                |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `ModuleNotFoundError: No module named 'pymongo'`      | Run `conda activate tdt4225`, then `python -m pip install -r requirements.txt`.         |
-| `Authentication failed`                               | Check that the values in `DbConnector.py` match the table under "Database settings".    |
-| `ServerSelectionTimeoutError` or `Connection refused` | The container is not running. Open Docker Desktop and run `docker start tdt4225-mongo`. |
-| `collection Person already exists`                    | An earlier run of `example.py` crashed before cleaning up. Run the command below.       |
+| Error                                                  | Solution                                                                                            |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `ModuleNotFoundError: No module named 'pymongo'`       | Run `conda activate tdt4225`, then `python -m pip install -r requirements.txt`.                     |
+| `Authentication failed`                                | Check that the values in `DbConnector.py` match the table under "Database settings".                |
+| `ServerSelectionTimeoutError` or `Connection refused`  | The container is not running. Open Docker Desktop and run `docker start tdt4225-mongo`.             |
+| `collection Person already exists`                     | An earlier run of `example.py` crashed before cleaning up. Run the command below.                   |
+| `FileNotFoundError: cleaned/movies.pkl`                | Run `python clean_data.py` before `python insert_data.py`.                                          |
+| The insertion stops or the computer runs out of memory | Close other programs, and check Docker Desktop's memory and disk limits under Settings → Resources. |
 
 Delete a leftover Person collection:
 
