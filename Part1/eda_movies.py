@@ -412,6 +412,33 @@ def crosstab_status_release(df):
                 headers=["Status"] + columns)
 
 
+# --- 7. Long runtimes --------------------------------------------------------
+
+def count_long_runtimes(df, limits=(180, 240, 300, 400, 600)):
+    """Print the number and percent of movies with runtime above each limit."""
+    print_section("7a. Movies with long runtime")
+    runtime = df["runtime_num"]
+    table = [[f"> {m} min", (runtime > m).sum(), percent((runtime > m).sum(), len(df))]
+             for m in limits]
+    print_table(table, headers=["Runtime", "Movies", "Percent"])
+
+
+def list_long_runtimes(df, limit=300):
+    """Print all movies with runtime above limit, longest first."""
+    long = df[df["runtime_num"] > limit].sort_values("runtime_num", ascending=False)
+    print_section(f"7b. All movies with runtime > {limit} min ({len(long)} movies)")
+
+    table = []
+    for _, movie in long.iterrows():
+        # Release year is empty if release_date is missing or not a valid date.
+        year = "" if pd.isna(movie["release_dt"]) else movie["release_dt"].year
+        table.append([movie["title"], f"{movie['runtime_num']:.0f}", year,
+                      first_genre(movie["genres_parsed"]),
+                      f"{movie['vote_count_num']:.0f}"])
+    print_table(table, headers=["Title", "Runtime (min)", "Year", "First genre",
+                                "vote_count"])
+
+
 # --- Main --------------------------------------------------------------------
 
 def main():
@@ -442,6 +469,9 @@ def main():
     check_tiny_money(df)
     check_collections(df)
     crosstab_status_release(df)
+
+    count_long_runtimes(df)
+    list_long_runtimes(df)
 
 
 if __name__ == "__main__":
