@@ -97,6 +97,35 @@ The script should connect to `movies`, create a `Person` collection, insert and 
 
 ---
 
+### 8. Build the database
+
+The database is built in two steps: first the data is cleaned and saved to files, then the cleaned files are inserted into MongoDB.
+
+```
+python clean_data.py
+python insert_data.py
+```
+
+- `clean_data.py` reads the CSV files in `dataset/`, cleans them and saves the result as `cleaned/movies.pkl` and `cleaned/ratings.pkl`. It prints the number of rows before and after each cleaning step.
+- `insert_data.py` drops any existing `movies` and `ratings` collections, inserts the cleaned data, creates the indexes and prints the number of documents in each collection.
+
+The `cleaned/` folder is listed in `.gitignore` and must not be pushed, since the cleaned ratings are several hundred MB. Each group member creates their own copy by running `clean_data.py`.
+
+Inserting all 26 million ratings can take a while. Keep the computer plugged in and make sure Docker Desktop has enough memory and disk space (Settings → Resources). To test the scripts quickly first, set the test flag at the top of `clean_data.py` to use `ratings_small.csv` and `links_small.csv`, then run both scripts.
+
+Check that the database was built correctly:
+
+```
+docker exec -it tdt4225-mongo mongosh -u oscar -p oscar123 --authenticationDatabase movies movies --eval "db.movies.countDocuments(); db.ratings.countDocuments()"
+```
+
+The database contains two collections:
+
+| Collection | Content                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| `movies`   | One document per movie, with `_id` = TMDB id, and genres, collection, cast, crew and keywords embedded |
+| `ratings`  | One document per rating, with `userId`, `tmdbId`, `rating` and `timestamp`                             |
+
 ## Daily use
 
 Do these steps every time you work on the project.
@@ -177,34 +206,7 @@ The data is kept and will be there the next time you start the container.
 
 ---
 
-### 8. Build the database
-
-The database is built in two steps: first the data is cleaned and saved to files, then the cleaned files are inserted into MongoDB.
-
-```
-python clean_data.py
-python insert_data.py
-```
-
-- `clean_data.py` reads the CSV files in `dataset/`, cleans them and saves the result as `cleaned/movies.pkl` and `cleaned/ratings.pkl`. It prints the number of rows before and after each cleaning step.
-- `insert_data.py` drops any existing `movies` and `ratings` collections, inserts the cleaned data, creates the indexes and prints the number of documents in each collection.
-
-The `cleaned/` folder is listed in `.gitignore` and must not be pushed, since the cleaned ratings are several hundred MB. Each group member creates their own copy by running `clean_data.py`.
-
-Inserting all 26 million ratings can take a while. Keep the computer plugged in and make sure Docker Desktop has enough memory and disk space (Settings → Resources). To test the scripts quickly first, set the test flag at the top of `clean_data.py` to use `ratings_small.csv` and `links_small.csv`, then run both scripts.
-
-Check that the database was built correctly:
-
-```
-docker exec -it tdt4225-mongo mongosh -u oscar -p oscar123 --authenticationDatabase movies movies --eval "db.movies.countDocuments(); db.ratings.countDocuments()"
-```
-
-The database contains two collections:
-
-| Collection | Content                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------------------ |
-| `movies`   | One document per movie, with `_id` = TMDB id, and genres, collection, cast, crew and keywords embedded |
-| `ratings`  | One document per rating, with `userId`, `tmdbId`, `rating` and `timestamp`                             |
+                             |
 
 ## Troubleshooting
 
