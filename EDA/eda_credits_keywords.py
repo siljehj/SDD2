@@ -1,34 +1,10 @@
-"""
-EDA of credits.csv and keywords.csv (TDT4225, Part 1).
-
-credits.csv:
-  1. duplicate ids, and ids that do / do not exist in movies_metadata.csv
-  2. movies with empty cast and empty crew lists
-  3. the fields used in the cast and crew objects
-  4. number of cast and crew members per movie
-  5. gender of all cast members and of the top 5 cast members per movie
-  6. number of directors per movie
-  7. names that belong to more than one person id
-
-keywords.csv:
-  1. duplicate ids, ids not in movies_metadata.csv, empty keyword lists
-
-The data files are only read, never modified.
-
-Run from anywhere:  python Part1/eda_credits_keywords.py
-"""
-
 import time
 from collections import Counter
-
 import pandas as pd
 
-# Reuse loading, table style and parsing from the earlier EDA scripts.
 from eda_overview import load_csv, print_section
 from eda_movies import parse_nested, percent, print_table
 
-
-# TMDB gender codes used in the cast and crew objects.
 GENDER_LABELS = {0: "0 (unknown)", 1: "1 (female)", 2: "2 (male)"}
 
 
@@ -37,7 +13,6 @@ GENDER_LABELS = {0: "0 (unknown)", 1: "1 (female)", 2: "2 (male)"}
 def load_movie_ids():
     """Return the set of numeric ids in movies_metadata.csv."""
     movies = load_csv("movies_metadata.csv")
-    # Malformed rows have dates in the id column; errors="coerce" makes them NaN.
     ids = pd.to_numeric(movies["id"], errors="coerce").dropna().astype(int)
     return set(ids)
 
@@ -57,7 +32,6 @@ def check_ids(df, raw_columns, movie_ids, title):
     print_section(title)
     total = len(df)
     extra_rows = df["id"].duplicated().sum()
-    # Identical rows are compared on the original text columns only.
     identical = df[raw_columns].duplicated().sum()
     unique_ids = df["id"].drop_duplicates()
     in_movies = unique_ids.isin(movie_ids).sum()
@@ -93,7 +67,6 @@ def list_fields(df):
     """Print every field used in the cast and crew objects, and how often it occurs."""
     print_section("Credits 3. Fields in the cast and crew objects")
     for col in ["cast", "crew"]:
-        # Count how many objects contain each key.
         keys = Counter()
         n_objects = 0
         for people in df[f"{col}_parsed"].dropna():
@@ -154,7 +127,6 @@ def names_with_several_ids(df, n_examples=5):
     """Count names that belong to more than one person id, for cast and crew."""
     print_section("Credits 7. Names with more than one person id")
     for col in ["cast", "crew"]:
-        # One row per unique (name, id) pair, then count ids per name.
         pairs = {(p["name"], p["id"]) for people in df[f"{col}_parsed"].dropna()
                  for p in people}
         pairs = pd.DataFrame(list(pairs), columns=["name", "id"])
@@ -171,16 +143,8 @@ def names_with_several_ids(df, n_examples=5):
 
 
 def inspect_differing_duplicates(df):
-    """
-    Inspect ids that occur more than once in credits.csv with different content.
-
-    For each such id: show the size of every copy, check whether one copy
-    contains all people of the other (subset check), and show which copy the
-    rule "keep the row with the most cast and crew members" would keep.
-    """
     print_section("Credits 8. Duplicate ids with different content")
 
-    # Ids with more than one row, and more than one distinct (cast, crew) text.
     duplicated = df[df["id"].duplicated(keep=False)]
     n_versions = duplicated.groupby("id")[["cast", "crew"]].apply(
         lambda g: len(g.drop_duplicates()))
@@ -190,8 +154,6 @@ def inspect_differing_duplicates(df):
     for movie_id in differing_ids:
         copies = df[df["id"] == movie_id]
 
-        # Person ids per copy. Cast and crew are kept apart with a prefix, so a
-        # person who is crew in one copy and cast in the other counts as different.
         people = {row: {("cast", p["id"]) for p in copy["cast_parsed"]}
                        | {("crew", p["id"]) for p in copy["crew_parsed"]}
                   for row, copy in copies.iterrows()}
@@ -205,12 +167,10 @@ def inspect_differing_duplicates(df):
         print_table(table, headers=["Row", "Cast", "Crew",
                                     "Distinct cast ids", "Distinct crew ids"])
 
-        # Subset check between each pair of copies.
         rows = list(people)
         for i, a in enumerate(rows):
             for b in rows[i + 1:]:
                 if people[a] == people[b]:
-                    # Same people: check whether only the order of the objects differs.
                     same_objects = all(
                         sorted(map(repr, copies.at[a, f"{col}_parsed"]))
                         == sorted(map(repr, copies.at[b, f"{col}_parsed"]))
@@ -227,7 +187,6 @@ def inspect_differing_duplicates(df):
                           f"{len(people[a] - people[b])} only in row {a}, "
                           f"{len(people[b] - people[a])} only in row {b}")
 
-        # Rule: keep the copy with the most cast + crew members (first on a tie).
         sizes = {row: len(c["cast_parsed"]) + len(c["crew_parsed"])
                  for row, c in copies.iterrows()}
         keep = max(sizes, key=sizes.get)

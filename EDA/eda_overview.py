@@ -1,15 +1,3 @@
-"""
-EDA overview of The Movies Dataset (TDT4225, Part 1).
-
-For each CSV file in dataset/ this script prints:
-  - number of rows and columns
-  - column names and data types
-  - number and percentage of missing values per column
-  - whether each column contains nested JSON-like strings (not parsed here)
-
-Run from anywhere:  python Part1/eda_overview.py
-"""
-
 import time
 from pathlib import Path
 from tabulate import tabulate
@@ -18,42 +6,29 @@ import pandas as pd
 
 
 # --- Paths -----------------------------------------------------------------
-# The script lives in <repo>/Part1/, the data in <repo>/dataset/.
-# Building the path from __file__ makes the script independent of the
-# directory it is run from.
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATASET_DIR = SCRIPT_DIR.parent / "dataset"
 
 
 # --- Per-file loading options ----------------------------------------------
-# Extra keyword arguments passed to pd.read_csv for each file.
 FILE_CONFIG = {
-    # Some rows in this file are malformed, so pandas would guess different
-    # types per chunk. low_memory=False reads the whole file before choosing
-    # dtypes, which avoids the "mixed types" warning.
     "movies_metadata.csv": {"low_memory": False},
     "credits.csv": {},
     "keywords.csv": {},
-    # ~26 million rows: explicit compact dtypes roughly halve memory use
-    # compared to pandas' default int64/float64.
     "ratings.csv": {
         "dtype": {
             "userId": "int32",
             "movieId": "int32",
             "rating": "float32",
-            "timestamp": "int32",  # Unix seconds, fits in int32 until 2038
+            "timestamp": "int32",  
         }
     },
     "ratings_small.csv": {},
-    # imdbId is read as text so leading zeros (e.g. "0114709") are kept.
     "links.csv": {"dtype": {"imdbId": "string"}},
     "links_small.csv": {"dtype": {"imdbId": "string"}},
 }
 
-# Columns holding nested JSON-like strings, e.g.
-# "[{'id': 16, 'name': 'Animation'}, ...]". They use Python syntax (single
-# quotes), so they are not strict JSON. They are only noted here; parsing is
-# done later during cleaning.
+# Columns holding nested JSON
 NESTED_COLUMNS = {
     "movies_metadata.csv": [
         "belongs_to_collection",
@@ -71,9 +46,6 @@ def load_csv(filename):
     """Read one CSV file from the dataset folder using its configured options."""
     path = DATASET_DIR / filename
     options = FILE_CONFIG.get(filename, {})
-
-    # Large files (credits.csv, ratings.csv) take a while to read, so show
-    # progress to make it clear the script is still working.
     size_mb = path.stat().st_size / 1_000_000
     print(f"Loading {filename} ({size_mb:.0f} MB)...", flush=True)
     start = time.perf_counter()

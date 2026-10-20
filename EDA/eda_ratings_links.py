@@ -1,28 +1,5 @@
-"""
-EDA of ratings.csv and links.csv (TDT4225, Part 1).
-
-links.csv:
-  1. duplicate movieId values and tmdbId values used by several movieIds
-  2. missing tmdbId values
-  3. tmdbId values that exist in movies_metadata.csv
-
-ratings.csv (~26 million rows, loaded with compact dtypes, only vectorized
-pandas operations):
-  1. value counts of rating
-  2. duplicate (userId, movieId) pairs
-  3. earliest and latest timestamp
-  4. ratings per user
-  5. ratings per movie
-  6. coverage: how many ratings can be linked to a movie in movies_metadata.csv
-
-The data files are only read, never modified.
-
-Run from anywhere:  python Part1/eda_ratings_links.py
-"""
-
 import pandas as pd
 
-# Reuse loading, table style and parsing from the earlier EDA scripts.
 from eda_overview import load_csv, print_section
 from eda_movies import parse_nested, percent, print_table
 
@@ -30,19 +7,12 @@ from eda_movies import parse_nested, percent, print_table
 # --- Helpers ----------------------------------------------------------------
 
 def summary_row(label, values):
-    """Return [label, min, median, mean, max] for a Series of counts."""
     return [label, f"{values.min():,}", f"{values.median():,.0f}",
             f"{values.mean():,.1f}", f"{values.max():,}"]
 
 
 def load_movie_id_sets():
-    """
-    Return three sets of movie ids from movies_metadata.csv: all numeric ids,
-    the ids of movies with at least one genre, and the ids that occur more
-    than once.
-    """
     movies = load_csv("movies_metadata.csv")
-    # Malformed rows have dates in the id column; errors="coerce" makes them NaN.
     movies["id_num"] = pd.to_numeric(movies["id"], errors="coerce")
     movies = movies[movies["id_num"].notna()]
 
@@ -61,7 +31,6 @@ def check_link_duplicates(links):
     print_section("Links 1. Duplicate movieId and shared tmdbId")
     dup_movie = links["movieId"].duplicated().sum()
 
-    # Several MovieLens movies pointing to the same TMDB movie.
     tmdb_counts = links["tmdbId"].dropna().value_counts()
     shared = tmdb_counts[tmdb_counts > 1]
     print_table([
@@ -151,8 +120,6 @@ def check_coverage(ratings, links, movie_ids, genre_ids):
     """
     print_section("Ratings 6. Coverage of ratings")
 
-    # Do the lookups on the small links table first, then check the 26M
-    # ratings with one vectorized isin() per step.
     with_tmdb = links[links["tmdbId"].notna()]
     in_movies = with_tmdb[with_tmdb["tmdbId"].isin(movie_ids)]
     with_genre = in_movies[in_movies["tmdbId"].isin(genre_ids)]
@@ -179,14 +146,10 @@ def check_duplicate_user_tmdb(ratings, links, n_examples=5):
     """Count users who rated the same TMDB movie through different movieIds."""
     print_section("Cross 1. Duplicate (userId, tmdbId) pairs")
 
-    # Only movieIds whose tmdbId is shared can give a duplicate pair, so filter
-    # the 26M ratings down to those first (one vectorized isin), then map
-    # movieId -> tmdbId on the small result.
     shared = links[links["tmdbId"].isin(shared_tmdb_ids(links))]
     subset = ratings[ratings["movieId"].isin(shared["movieId"])].copy()
     subset["tmdbId"] = subset["movieId"].map(shared.set_index("movieId")["tmdbId"])
 
-    # keep=False marks every rating in a duplicated pair, not only the extra ones.
     dup = subset[subset.duplicated(subset=["userId", "tmdbId"], keep=False)]
     pairs = dup.groupby(["userId", "tmdbId"]).agg(
         movieIds=("movieId", list), ratings=("rating", list))
@@ -223,7 +186,6 @@ def main():
     print("links.csv")
     print("=" * 80)
     links = load_csv("links.csv")
-    # tmdbId has missing values; nullable Int64 keeps the ids as integers.
     links["tmdbId"] = links["tmdbId"].astype("Int64")
     check_link_duplicates(links)
     check_missing_tmdb(links)
@@ -233,7 +195,7 @@ def main():
     print("=" * 80)
     print("ratings.csv")
     print("=" * 80)
-    ratings = load_csv("ratings.csv")  # compact dtypes are set in eda_overview.py
+    ratings = load_csv("ratings.csv") 
     count_rating_values(ratings)
     count_duplicate_pairs(ratings)
     show_time_range(ratings)

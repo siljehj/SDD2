@@ -1,44 +1,22 @@
-"""
-Deeper EDA of movies_metadata.csv (TDT4225, Part 1).
-
-The script:
-  1. finds rows whose id is not a number (malformed rows)
-  2. counts duplicate ids and checks whether the duplicates are identical
-  3. counts hidden missing values (0 instead of unknown, empty lists "[]")
-  4. summarises the distributions of the main attributes
-  5. saves three plots to Part1/figures/
-  6. runs extra quality checks (zero ratings, tiny budgets, collections,
-     status vs. release date)
-
-The data files are only read, never modified.
-
-Run from anywhere:  python Part1/eda_movies.py
-"""
-
 import ast
-
 import matplotlib
 
-matplotlib.use("Agg")  # save figures to files without opening a window
+matplotlib.use("Agg")  
 import matplotlib.pyplot as plt
 import pandas as pd
 from tabulate import tabulate
 
-# Reuse the loading function, paths and section style from the overview script.
 from eda_overview import SCRIPT_DIR, load_csv, print_section
 
 
 FIGURES_DIR = SCRIPT_DIR / "figures"
 
-# Columns that are stored as text but should be numbers.
 NUMERIC_COLUMNS = ["id", "budget", "revenue", "runtime", "popularity",
                    "vote_average", "vote_count"]
 
-# Nested columns that hold a list of dicts, e.g. "[{'id': 16, 'name': 'Animation'}]".
 LIST_COLUMNS = ["genres", "production_companies", "production_countries",
                 "spoken_languages"]
 
-# Colours for the plots: one series colour plus muted text/grid colours.
 BAR_COLOR = "#2a78d6"
 TEXT_COLOR = "#52514e"
 GRID_COLOR = "#e4e3df"
@@ -85,7 +63,6 @@ def prepare_data(df):
     """
     df = df.copy()
     for col in NUMERIC_COLUMNS:
-        # errors="coerce" turns values that are not numbers into NaN.
         df[f"{col}_num"] = pd.to_numeric(df[col], errors="coerce")
     for col in LIST_COLUMNS:
         df[f"{col}_parsed"] = df[col].apply(parse_nested)
@@ -102,13 +79,11 @@ def check_malformed_rows(df):
     print_section("1. Rows where id is not a number")
     print(f"Number of rows: {bad_id.sum()}")
 
-    # Show a few columns of each malformed row, to see that values are shifted.
     show_cols = ["id", "imdb_id", "title", "budget", "popularity", "vote_count"]
     rows = df.loc[bad_id, show_cols].astype(str).values.tolist()
     print_table([[i] + r for i, r in zip(df.index[bad_id], rows)],
                 headers=["Row"] + show_cols)
 
-    # Are these the same rows as those with missing title, vote_count, ...?
     print("\nOverlap with rows that have missing values in other columns:")
     table = []
     for col in ["title", "vote_count", "vote_average", "revenue", "video"]:
@@ -117,10 +92,6 @@ def check_malformed_rows(df):
         table.append([col, missing.sum(), both, (missing & ~bad_id).sum()])
     print_table(table, headers=["Column", "Missing", "Also bad id", "Not bad id"])
 
-    # The other rows with a missing title turn out to be the rows directly
-    # before each malformed row: one movie has been split over two lines in
-    # the CSV (the first line ends early, the second is shifted into the wrong
-    # columns).
     before = malformed_row_pairs(df)
     print("\nRows with missing title, grouped with the malformed row after them:")
     table = [[i, df.at[i, "id"], df.at[i, "original_title"], i + 1, df.at[i + 1, "id"]]
@@ -150,16 +121,14 @@ def check_duplicates(df):
     """Count duplicate ids and check whether the duplicate rows are identical."""
     print_section("2. Duplicate ids")
 
-    # Only use the original columns, not the converted copies.
     original = df[[c for c in df.columns if not c.endswith(("_num", "_parsed"))
                    and c != "release_dt"]]
 
-    dup_ids = original["id"].duplicated(keep=False)  # all copies of a duplicated id
+    dup_ids = original["id"].duplicated(keep=False)
     print(f"Ids that occur more than once: {original.loc[dup_ids, 'id'].nunique()}")
     print(f"Extra rows caused by duplicate ids: {original['id'].duplicated().sum()}")
     print(f"Fully identical duplicate rows: {original.duplicated().sum()}")
 
-    # For duplicates that are NOT identical, show which columns differ.
     differing = []
     for movie_id, group in original[dup_ids].groupby("id"):
         diff_cols = [c for c in group.columns if group[c].nunique(dropna=False) > 1]
@@ -178,19 +147,16 @@ def count_hidden_missing(df):
     print_section("3. Hidden missing values")
     table = []
 
-    # A budget, revenue or runtime of 0 almost certainly means "unknown".
     for col in ["budget", "revenue", "runtime"]:
         zeros = (df[f"{col}_num"] == 0).sum()
         table.append([col, "= 0", zeros, percent(zeros, total)])
 
-    # Empty lists mean no genres/companies/... are registered.
     for col in LIST_COLUMNS:
         empty = df[f"{col}_parsed"].apply(lambda v: v == []).sum()
         table.append([col, "[]", empty, percent(empty, total)])
 
     print_table(table, headers=["Column", "Value", "Count", "Percent"])
 
-    # Values that could not be parsed at all (NaN or malformed text).
     unparsed = [[col, df[f"{col}_parsed"].isna().sum()] for col in LIST_COLUMNS]
     print("\nNested values that could not be parsed (NaN or malformed):")
     print_table(unparsed, headers=["Column", "Count"])
@@ -341,7 +307,6 @@ def check_zero_vote_average(df):
         ["vote_average = 0", zero_avg.sum(), percent(zero_avg.sum(), len(df))],
         ["... and vote_count = 0", no_votes.sum(), percent(no_votes.sum(), zero_avg.sum())],
     ]
-    # The second percentage is relative to the movies with vote_average = 0.
     print_table(table, headers=["Condition", "Movies", "Percent"])
 
 
@@ -358,8 +323,6 @@ def check_tiny_money(df, limit=1000, n_examples=8):
                  ["budget or revenue", tiny_any.sum()]],
                 headers=["Column", "Movies"])
 
-    # Such small values are probably given in millions (e.g. 5 = 5,000,000)
-    # or are simply wrong. Show a few examples.
     examples = df.loc[tiny_any, ["title", "budget_num", "revenue_num"]].head(n_examples)
     print(f"\nExamples (first {len(examples)}):")
     print_table([[t, f"{b:,.0f}", f"{r:,.0f}"] for t, b, r in examples.values],
@@ -370,12 +333,10 @@ def check_collections(df):
     """Parse belongs_to_collection and count movies and collections."""
     print_section("6c. belongs_to_collection")
 
-    # Each value is a single dict, e.g. "{'id': 10194, 'name': 'Toy Story Collection', ...}".
     parsed = df["belongs_to_collection"].apply(parse_nested)
     in_collection = parsed.apply(lambda v: isinstance(v, dict))
     unparsed = df["belongs_to_collection"].notna() & ~in_collection
 
-    # Count movies per collection id (the id is unique, names may not be).
     collections = parsed[in_collection].apply(lambda v: (v["id"], v["name"]))
     per_collection = collections.value_counts()
 
@@ -405,7 +366,6 @@ def crosstab_status_release(df):
     status = df["status"].fillna("(missing)")
     table = pd.crosstab(status, category, margins=True, margins_name="Total")
 
-    # Fixed column order so the table reads from "normal" to "suspicious".
     columns = ["2017 or earlier", "after 2017", "missing", "Total"]
     table = table.reindex(columns=columns, fill_value=0)
     print_table([[s] + list(row) for s, row in zip(table.index, table.values)],
@@ -430,7 +390,6 @@ def list_long_runtimes(df, limit=300):
 
     table = []
     for _, movie in long.iterrows():
-        # Release year is empty if release_date is missing or not a valid date.
         year = "" if pd.isna(movie["release_dt"]) else movie["release_dt"].year
         table.append([movie["title"], f"{movie['runtime_num']:.0f}", year,
                       first_genre(movie["genres_parsed"]),
@@ -447,8 +406,6 @@ def main():
     check_malformed_rows(df)
     check_duplicates(df)
 
-    # The rest of the analysis ignores the malformed rows, so their shifted
-    # values (e.g. company names in genres) do not distort the results.
     df = remove_malformed_rows(df)
     count_hidden_missing(df)
 
