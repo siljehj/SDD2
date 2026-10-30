@@ -77,6 +77,11 @@ def date_string(date_field):
     return {"$dateToString": {"date": date_field, "format": DATE_FORMAT}}
 
 
+def count_with_revenue():
+    # Counts movies that actually have a revenue figure (null, missing and 0 are not counted)
+    return {"$sum": {"$cond": [{"$gt": ["$revenue", 0]}, 1, 0]}}
+
+
 def directors_of():
     return {"$setUnion": [{"$map": {
         "input": {"$filter": {"input": "$crew", "as": "c",
@@ -93,7 +98,7 @@ def task_1(db):
         {"$group": {"_id": "$directors.id",
                     "director": {"$first": "$directors.name"},
                     "movie_count": {"$sum": 1},
-                    "with_revenue": {"$sum": {"$cond": [{"$eq": ["$revenue", None]}, 0, 1]}},
+                    "with_revenue": count_with_revenue(),
                     "median_revenue": median_of("$revenue"),
                     "mean_vote_average": {"$avg": "$vote_average"}}},
         {"$match": {"movie_count": {"$gte": MIN_DIRECTOR_MOVIES},
@@ -190,6 +195,7 @@ def task_4(db):
         {"$group": {"_id": "$belongs_to_collection.id",
                     "collection": {"$first": "$belongs_to_collection.name"},
                     "movie_count": {"$sum": 1},
+                    "with_revenue": count_with_revenue(),
                     "total_revenue": {"$sum": "$revenue"},
                     "median_vote_average": median_of("$vote_average"),
                     "earliest": {"$min": "$release_date"},
@@ -198,6 +204,7 @@ def task_4(db):
         {"$sort": {"total_revenue": -1}},
         {"$limit": 10},
         {"$project": {"_id": 0, "collection": "$collection", "movies": "$movie_count",
+                      "with_revenue": "$with_revenue",
                       "total_revenue": "$total_revenue", "median_vote": "$median_vote_average",
                       "released": {"$concat": [date_string("$earliest"), " -> ",
                                                date_string("$latest")]}}},
@@ -257,8 +264,17 @@ def task_6(db):
 
 
 def task_7(db):
+    # Uses the text index on overview and tagline from Part 1.
+    noir_match = {"$text": {"$search": "noir"}}
+
+    total = db.movies.count_documents(noir_match)
+    eligible = db.movies.count_documents({**noir_match,
+                                          "vote_count": {"$gte": MIN_NOIR_VOTES}})
+    print(f"\nTask 7: {total:,} movies mention noir in overview/tagline, "
+          f"{eligible:,} of them have vote_count >= {MIN_NOIR_VOTES}")
+
     pipeline = [
-        {"$match": {"$text": {"$search": "noir"}, "vote_count": {"$gte": MIN_NOIR_VOTES}}},
+        {"$match": {**noir_match, "vote_count": {"$gte": MIN_NOIR_VOTES}}},
         {"$sort": {"vote_average": -1, "vote_count": -1}},
         {"$limit": 20},
         {"$project": {"_id": 0, "title": "$title", "year": {"$year": "$release_date"},
@@ -272,7 +288,7 @@ def task_8(db):
     pipeline = [
         {"$match": {"vote_count": {"$gte": MIN_PAIR_VOTES}}},
         {"$project": {
-            "vote_average": 1, "revenue": 1,
+            "vote_average": 1, "vote_count": 1, "revenue": 1,
             "directors": directors_of(),
             "actors": {"$setUnion": [{"$map": {
                 "input": "$cast", "in": {"id": "$$this.id", "name": "$$this.name"}}}]}}},
@@ -283,13 +299,16 @@ def task_8(db):
                     "director": {"$first": "$directors.name"},
                     "actor": {"$first": "$actors.name"},
                     "films": {"$sum": 1},
-                    "mean_vote_average": {"$avg": "$vote_average"},
+                    "with_rev": count_with_revenue(),
+                    "vote_avg": {"$avg": "$vote_average"},
+                    "vote_count": {"$sum": "$vote_count"},
                     "mean_revenue": {"$avg": "$revenue"}}},
         {"$match": {"films": {"$gte": MIN_PAIR_FILMS}}},
-        {"$sort": {"mean_vote_average": -1, "films": -1}},
+        {"$sort": {"vote_avg": -1, "films": -1}},
         {"$limit": 20},
-        {"$project": {"_id": 0, "director": 1, "actor": 1, "films": 1,
-                      "mean_vote_average": {"$round": ["$mean_vote_average", 2]},
+        {"$project": {"_id": 0, "director": 1, "actor": 1, "films": 1, "with_rev": 1,
+                      "vote_avg": {"$round": ["$vote_avg", 2]},
+                      "vote_count": 1,
                       "mean_revenue": {"$round": ["$mean_revenue", 0]}}},
     ]
     show("Task 8: Top 20 director-actor pairs by mean vote_average",
